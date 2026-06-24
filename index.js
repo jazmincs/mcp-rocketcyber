@@ -13,9 +13,11 @@ app.get('/health', (req, res) => {
 
 app.all('/mcp', async (req, res) => {
 
-  // --- AUTENTICACIÓN Bearer Token ---
+  // --- AUTENTICACIÓN: Bearer header o query param ?token= ---
   const authHeader = req.headers['authorization'] || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const queryToken = req.query.token || '';
+  const token = bearerToken || queryToken;
   if (process.env.MCP_SECRET_TOKEN && token !== process.env.MCP_SECRET_TOKEN) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
