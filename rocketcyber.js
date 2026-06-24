@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 
-const BASE_URL = process.env.RC_BASE_URL || 'https://api-us.rocketcyber.com/v3';
+const BASE_URL = process.env.RC_BASE_URL || 'https://api-us.rocketcyber.com/v2';
 
 function getHeaders() {
   return {
@@ -13,7 +13,7 @@ async function request(method, endpoint, params = null) {
   let url = `${BASE_URL}${endpoint}`;
   if (params && method === 'GET') {
     const query = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined))
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null))
     );
     if (query.toString()) url += `?${query.toString()}`;
   }
@@ -26,22 +26,19 @@ async function request(method, endpoint, params = null) {
   return text ? JSON.parse(text) : {};
 }
 
-// --- ACCOUNTS ---
+// --- ACCOUNT ---
 export async function getAccount({ accountId }) {
   return request('GET', `/account/${accountId}`);
 }
 
-export async function getAccounts({ page = 1, limit = 25 } = {}) {
-  return request('GET', '/account', { page, limit });
-}
-
-// --- AGENTS (dispositivos) ---
-export async function getAgents({ accountId, page = 1, limit = 25, filterBy, sortBy, order } = {}) {
-  return request('GET', `/account/${accountId}/agent`, {
-    page, limit,
+// --- AGENTS ---
+export async function getAgents({ accountId, filterBy, filterValue, sortBy, orderBy } = {}) {
+  // filterBy: 'connectivity', filterValue: 'online'|'offline'|'isolated'
+  return request('GET', `/account/${accountId}/agents`, {
     ...(filterBy && { filterBy }),
+    ...(filterValue && { filterValue }),
     ...(sortBy && { sortBy }),
-    ...(order && { order }),
+    ...(orderBy && { orderBy }),
   });
 }
 
@@ -50,11 +47,12 @@ export async function getAgent({ agentId }) {
 }
 
 // --- INCIDENTS ---
-export async function getIncidents({ accountId, page = 1, limit = 25, status, appId } = {}) {
-  return request('GET', `/account/${accountId}/incident`, {
-    page, limit,
+export async function getIncidents({ accountId, status, appId, page, limit } = {}) {
+  return request('GET', `/account/${accountId}/incidents`, {
     ...(status && { status }),
     ...(appId && { appId }),
+    ...(page && { page }),
+    ...(limit && { limit }),
   });
 }
 
@@ -63,21 +61,21 @@ export async function getIncident({ incidentId }) {
 }
 
 export async function updateIncident({ incidentId, status }) {
-  // status: open, resolved, false-positive
   return request('PUT', `/incident/${incidentId}`, { status });
 }
 
-// --- APPS (monitores SOC) ---
-export async function getApps({ accountId, page = 1, limit = 25 } = {}) {
-  return request('GET', `/account/${accountId}/app`, { page, limit });
+// --- APPS ---
+export async function getApps({ accountId } = {}) {
+  return request('GET', `/account/${accountId}/apps`);
 }
 
 // --- EVENTS ---
-export async function getEvents({ accountId, page = 1, limit = 25, appId, startDate, endDate } = {}) {
-  return request('GET', `/account/${accountId}/event`, {
-    page, limit,
+export async function getEvents({ accountId, appId, startDate, endDate, page, limit } = {}) {
+  return request('GET', `/account/${accountId}/events`, {
     ...(appId && { appId }),
     ...(startDate && { startDate }),
     ...(endDate && { endDate }),
+    ...(page && { page }),
+    ...(limit && { limit }),
   });
 }
