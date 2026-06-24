@@ -8,12 +8,10 @@ const app = express();
 app.use(express.json());
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'mcp-rocketcyber', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'mcp-rocketcyber', version: '3.0.0', timestamp: new Date().toISOString() });
 });
 
 app.all('/mcp', async (req, res) => {
-
-  // --- AUTENTICACIÓN: Bearer header o query param ?token= ---
   const authHeader = req.headers['authorization'] || '';
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const queryToken = req.query.token || '';
@@ -22,11 +20,10 @@ app.all('/mcp', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const server = new McpServer({ name: 'rocketcyber-mcp', version: '2.0.0' });
+  const server = new McpServer({ name: 'rocketcyber-mcp', version: '3.0.0' });
 
-  // --- TOOL: get_account ---
   server.tool('get_account',
-    'Obtiene información de una cuenta/cliente de RocketCyber: nombre, jerarquía, tipo, estado, lista de sub-cuentas.',
+    'Obtiene información de una cuenta/cliente: nombre, jerarquía, tipo, estado, sub-cuentas.',
     { accountId: z.number().describe('ID de la cuenta en RocketCyber') },
     async ({ accountId }) => {
       const r = await RC.getAccount({ accountId });
@@ -34,15 +31,15 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: list_agents ---
   server.tool('list_agents',
-    'Lista los agentes/dispositivos de una cuenta. Filtra por conectividad: online, offline, isolated.',
+    'Lista agentes/dispositivos. Filtra por accountId y conectividad (online/offline/isolated).',
     {
-      accountId: z.number().describe('ID de la cuenta'),
+      accountId: z.number().optional().describe('ID de la cuenta para filtrar'),
       filterBy: z.string().optional().describe('Campo a filtrar. Usar: connectivity'),
-      filterValue: z.enum(['online', 'offline', 'isolated']).optional().describe('Valor del filtro de conectividad'),
+      filterValue: z.enum(['online', 'offline', 'isolated']).optional().describe('Valor del filtro'),
       sortBy: z.enum(['id', 'hostname', 'agentVersion', 'lastConnected']).optional(),
       orderBy: z.enum(['asc', 'desc']).optional(),
+      pageSize: z.number().optional().default(25),
     },
     async (p) => {
       const r = await RC.getAgents(p);
@@ -50,9 +47,8 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: get_agent ---
   server.tool('get_agent',
-    'Obtiene detalles completos de un agente: OS, IP, versión, última conexión, estado.',
+    'Obtiene detalles completos de un agente: OS, IP, versión, última conexión.',
     { agentId: z.string().describe('ID del agente') },
     async ({ agentId }) => {
       const r = await RC.getAgent({ agentId });
@@ -60,15 +56,13 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: list_incidents ---
   server.tool('list_incidents',
-    'Lista los incidentes SOC de una cuenta. Filtra por estado (open, resolved, false-positive) y por app.',
+    'Lista incidentes SOC. Filtra por accountId, estado (open/resolved/false-positive) y app.',
     {
-      accountId: z.number().describe('ID de la cuenta'),
-      status: z.enum(['open', 'resolved', 'false-positive']).optional().describe('Estado del incidente'),
-      appId: z.number().optional().describe('ID del monitor/app para filtrar'),
-      page: z.number().optional(),
-      limit: z.number().optional().default(25),
+      accountId: z.number().optional().describe('ID de la cuenta'),
+      status: z.enum(['open', 'resolved', 'false-positive']).optional(),
+      appId: z.number().optional().describe('ID del monitor/app'),
+      pageSize: z.number().optional().default(25),
     },
     async (p) => {
       const r = await RC.getIncidents(p);
@@ -76,7 +70,6 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: get_incident ---
   server.tool('get_incident',
     'Obtiene detalles completos de un incidente SOC específico.',
     { incidentId: z.number().describe('ID del incidente') },
@@ -86,9 +79,8 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: update_incident ---
   server.tool('update_incident',
-    'Actualiza el estado de un incidente SOC.',
+    'Actualiza el estado de un incidente SOC: open, resolved, false-positive.',
     {
       incidentId: z.number().describe('ID del incidente'),
       status: z.enum(['open', 'resolved', 'false-positive']).describe('Nuevo estado'),
@@ -99,26 +91,23 @@ app.all('/mcp', async (req, res) => {
     }
   );
 
-  // --- TOOL: list_apps ---
   server.tool('list_apps',
-    'Lista los monitores/apps SOC activos en una cuenta (Advanced Breach Detection, Ransomware, etc.).',
-    { accountId: z.number().describe('ID de la cuenta') },
+    'Lista los monitores/apps SOC activos. Filtra por accountId.',
+    { accountId: z.number().optional().describe('ID de la cuenta') },
     async ({ accountId }) => {
       const r = await RC.getApps({ accountId });
       return { content: [{ type: 'text', text: JSON.stringify(r, null, 2) }] };
     }
   );
 
-  // --- TOOL: list_events ---
   server.tool('list_events',
-    'Lista eventos de seguridad de una cuenta. Filtra por app y rango de fechas ISO.',
+    'Lista eventos de seguridad. Filtra por accountId, app y rango de fechas.',
     {
-      accountId: z.number().describe('ID de la cuenta'),
+      accountId: z.number().optional().describe('ID de la cuenta'),
       appId: z.number().optional().describe('ID del monitor/app'),
       startDate: z.string().optional().describe('Fecha inicio ISO (ej: 2026-06-01T00:00:00Z)'),
       endDate: z.string().optional().describe('Fecha fin ISO (ej: 2026-06-30T23:59:59Z)'),
-      page: z.number().optional(),
-      limit: z.number().optional().default(25),
+      pageSize: z.number().optional().default(25),
     },
     async (p) => {
       const r = await RC.getEvents(p);
@@ -133,6 +122,6 @@ app.all('/mcp', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`RocketCyber MCP server v2 listening on http://0.0.0.0:${PORT}/mcp`);
+  console.log(`RocketCyber MCP server v3 listening on http://0.0.0.0:${PORT}/mcp`);
   console.log(`Health: http://0.0.0.0:${PORT}/health`);
 });
